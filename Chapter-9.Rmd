@@ -26,6 +26,10 @@ library(gt)
 library(scales)
 library(modelsummary)
 theme_set(theme_minimal())
+library(ggfortify)
+library(survival)
+library(marginaleffects)
+
 
 options(digits = 3)
 
@@ -34,41 +38,117 @@ options(digits = 3)
 ## Exercise 1
 
 
-File Ex9_1.sav contains data from a small experiment concerning motion sickness at sea (Burns, 1984). Subjects were placed in a cabin subjected to vertical motion for two hours. The outcome variable was the waiting time to emesis (vomiting). Some subjects requested an early stop to the experiment although they had not vomited, yielding censored observations, while others successfully survived two hours. The experiment was carried out with two “treatments”: two combinations of movement accelerations and frequency. One
-combination was used for a group of 21 subjects, the other in a different group of 28 subjects.
+File Ex9_1.sav contains data from a small experiment concerning motion sickness at sea (Burns, 1984). Subjects were placed in a cabin subjected to vertical motion for two hours. The outcome variable was the waiting time to emesis (vomiting). Some subjects requested an early stop to the experiment although they had not vomited, yielding censored observations, while others successfully survived two hours. The experiment was carried out with two "treatments": two combinations of movement accelerations and frequency. One combination was used for a group of 21 subjects, the other in a different group of 28 subjects.
+
 
 (a) Calculate and plot Kaplan-Meier estimates of survival probabilities in the two groups.
 
-**Answer**: See Lecture 8 slides for Kaplan-Meier curves and SPSS instructions to produce them and the tables.
+
+
+**Answer**: See Lecture 8 slides for Kaplan-Meier curves and [R documentation](https://cran.r-project.org/web/packages/ggfortify/vignettes/plot_surv.html) on producing the plots.
+
+```{r ex9a}
+ex9 <- read_sav("data/ex9_1.sav") # %>% 
+  # mutate(across(1:3, ~ as.numeric(.x)))
+
+fit <- survfit(Surv(stime, censor) ~ expgroup, data = ex9)
+autoplot(fit) + 
+  labs(
+    title = "Kaplan-Meier curves",
+    y = "Cumulative survival", 
+    x = "Time to emesis", 
+    color = "Experiment group", 
+    fill = "Experiment group") + 
+  theme(legend.position = "bottom")
+
+```
+
+
 
 (b) Calculate the 95% CI for the difference between survival probabilities of the two groups after 60 minutes.
 
-**Answer**: The estimated survival probabilities at 60 minutes are P1=0.854 (SE=0.078) and P2=0.816 (SE=0.074). The difference is 0.038, the standard error of the difference is estimated as √(0.0782+0.0742)=0.1075. The 95%-CI for the
-difference is thus 0.038±1.96∙0.1075 or -0.17 to 0.25.
+**Answer**: The estimated survival probabilities at 60 minutes are given below: 
+
+```{r ex9b}
+
+m <- coxph(Surv(time = stime, event = censor) ~ expgroup, data = ex9)
+
+predictions(
+  m, 
+  newdata = datagrid(expgroup = 1:2, stime = 60), 
+  type = "survival",
+  ) %>% 
+  as_tibble() %>% 
+  select(expgroup, estimate, std.error, statistic, p.value, conf.low, conf.high)
+
+```
+And we see that the probabilities of survival at t = 60 seconds are $p = 90.4% (se = 0.0271)$ for the first experimental group and $p = 78%, (se = 0.0434)$ for the second group. The difference is  $0.124$ and the standard error of the difference is the root of the sum of squares of the standard errors for each group taken separately, i.e., 
+
+$$
+\sqrt{0.0271^2 + 0.0434^2} = 0.0512
+$$
+
+
+
+Alternatively, you can use the `comparisons` function as follows: 
+
+
+```{r ex9b-1}
+
+comparisons(
+  m, 
+  newdata = 
+    datagrid(expgroup = 1, stime = 60), 
+  type = "survival",
+  ) %>% 
+  as_tibble() %>% 
+  select(estimate, std.error, statistic, p.value, conf.low, conf.high)
+
+```
+
+And it appears that the difference between the two survival probabilities is indeed $0.124 (se = 0.0705)$ with a confidence interval of $[-0.263; 0.0137]$. 
+
 
 
 (c) Compare the two survival curves by logrank test.
 
-**Answer**: The logrank test statistic is 3.207, df=1, P=0.073. The two curves are not significantly different when tested at 5% level.
+**Answer**: As can be seen below, the logrank test statistic is 3.2, df=1, P=0.07. The two curves are not significantly different when tested at 5% level.
 
+```{r ex9c}
+
+survdiff(Surv(stime, censor) ~ expgroup, data = ex9)
+
+```
 
 
 (d) Use Cox regression to compare the two treatments; compare the result to that of the logrank test; calculate the hazard ratio and its 95% CI.
 
-**Answer**: Using the group with motion frequency 0.167 as the reference, the regression coefficient is 0.896 (SE=0.521), PWald=0.086, PLikelihoodRatio=0.069.
+**Answer**: Using the group with motion frequency 0.167 as the reference, the regression coefficient is 0.904 (SE=0.521), the P-value is 0.083 and the confidence interval is $[-0.118; 1.93]$
 
-This is close (as we expect) to the result of the logrank test. The hazard ratio (of frequency 0.33 to frequency 0.167) is HR=2.45, 95%-CI is 0.88 to 6.8.
+```{r ex9d}
+tidy(m, conf.int = TRUE, exponentiate = TRUE)
+```
 
 
+This is close (as we expect) to the result of the log-rank test. The hazard ratio (of frequency 0.33 to frequency 0.167) is HR=2.47, 95%-CI is 0.89 to 6.86.
 
 (e) Two different persons undergo the experiment with different treatments. Estimate the probability that the waiting time until emesis under one of the treatments exceeds that under the other treatment.
 
-**Answer**: The probability that the waiting time is shorter under the frequency 0.33 than under the frequency 0.167 is estimated as 2.45/(1+2.45)=0.71. (Use the formula on page 9-10).
+**Answer**: The probability that the waiting time is shorter under the frequency 0.33 than under the frequency 0.167 is estimated as $2.45/(1+2.45)=0.71$. (Use the formula on page 9-10).
 
 
 (f) Early stopping censored individuals could have been near to being sick. Take this into account and compare the two groups by the logrank test.
 
-**Answer**: A possible solution is to considered the stopping individuals as experiencing the emesis, that is to consider their waiting times as exact (instead of censored). This results in a logrank value of 1.94, P=0.16.
+**Answer**: A possible solution is to consider the stopping individuals as experiencing the emesis, that is to consider their waiting times as exact (instead of censored). This results in a logrank value of 1.9, P=0.2.
+
+
+```{r ex9f}
+ex9 %>% 
+  mutate(censor = ifelse(stime < 120, 1, censor)) %>% 
+  survdiff(Surv(stime, censor) ~ expgroup, data = .) 
+
+
+```
 
 
 ## Exercise 2
@@ -85,7 +165,7 @@ The hazard ratios and P-values for the dummy variables v1, v2 and v3 were report
 
 (a) Which group is estimated to have the longest waiting time for pregnancy?
 
-**Answer**: A HR greater than 1 corresponds to a shorter waiting time. (The event in this exercise is “getting pregnant”. A larger hazard means a shorter waiting time). The HR’s of A:D, B:D and C:D all exceed 1, and so D has the longest waiting time.
+**Answer**: A HR greater than 1 corresponds to a shorter waiting time. (The event in this exercise is "getting pregnant". A larger hazard means a shorter waiting time). The HR’s of A:D, B:D and C:D all exceed 1, and so D has the longest waiting time.
 
 
 (b) A researcher compared all pairs of groups by separate tests. She used the Bonferroni method to keep the type-I error of the entire procedure below 10%. Which differences were found to be significant?
@@ -128,16 +208,16 @@ non-GvHD & non-CML 0.000
 -   non-GvHD & CML -2.508
 -   GvHD & CML -0.202 (= -2.508 + 2.306)
 
-The relative risk of dying relative to the non-GvHD non-CML group is simply $e^0 = 1$ as the LP for that group is zero. Thus the risks of dying in the other
-groups relative to non-GvHD non-CML patients are
-GvHD & non-CML e2.306 = 10.03
-non-GvHD & CML e-2.508 = 0.08
-GvHD & CML e-0.202 = 0.82
+The relative risk of dying relative to the non-GvHD non-CML group is simply $e^0 = 1$ as the LP for that group is zero. Thus the risks of dying in the other groups relative to non-GvHD non-CML patients are as follows:
+
+-   GvHD & non-CML $\exp(2.306) = 10.03$
+-   non-GvHD & CML $\exp(-2.508) = 0.08$
+-   GvHD & CML $\exp(-0.202) = 0.82$ 
 
 
 (c) Calculate the 95% confidence interval for the hazard ratio associated with GvHD.
 
-**Answer**: The 95% Cl is given by the range e2.306±1.96· 0.5898 or 3.16 to 31.9
+**Answer**: The 95% Cl is given by the range $\exp(2.306)\pm 1.96\cdot 0.5898$ or $[3.16; 31.9]$
 
 
 (d) Comment on the reliability of the Cox regression model in view of the sample size (37) and number of deaths (18).
