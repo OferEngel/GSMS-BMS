@@ -93,7 +93,7 @@ summary(m)
 ```
 
 
-The estimated regression line is $y_{tlc}= - 1.25 + 0.39\cdot x_{age}$, and the P-value for the regression coefficient is smaller than 0.001, so the relation is significant. The adjusted R square indicates that about 77% of the variation of tlc is explained by age.
+The estimated regression line is $Y_{tlc}= - 1.25 + 0.39\cdot X_{age}$, and the P-value for the regression coefficient is smaller than 0.001, so the relation is significant. The adjusted R square indicates that about 77% of the variation of tlc is explained by age.
 
 
 ## Exercise 2
@@ -124,7 +124,7 @@ rmr %>%
 
 
 
-**Answer**: The linear regression equation is $y_{RMR} = 811.23 + 7.06\cdot x_{weight}$ and the residual SD is about 158 kcal/24 hr.
+**Answer**: The linear regression equation is $Y_{RMR} = 811.23 + 7.06\cdot X_{weight}$ and the residual SD is about 158 kcal/24 hr.
 
 
 (b) Examine the distribution of the residuals. Is the analysis valid?

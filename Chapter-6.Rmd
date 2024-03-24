@@ -75,7 +75,7 @@ Which gives us $p = 0.0175$, a completely ridiculous result. This approximation 
 A study was carried out to see if the proportion of patients whose skin did not respond to [dinitrochlorobenzene (DNCB)](https://en.wikipedia.org/wiki/2,4-Dinitrochlorobenzene), a contact allergen, is the same as the proportion of patients with negative response to [croton oil](https://en.wikipedia.org/wiki/Croton_oil), a skin irritant. The
 following table shows the results of simultaneous skin reaction tests to DNCB and croton oil in 173 patients with skin cancer.
 
-```{r q2-tbl, echo=TRUE}
+```{r q2-tbl, echo=FALSE}
 library(janitor)
 library(gt)
 tribble(
@@ -103,9 +103,9 @@ mx <- matrix(
   ncol = 2, byrow = 2, 
   dimnames = 
     list( 
-         croton_oil =         # predictor
+         croton_oil =   # predictor
            c("+ve", "-ve"), 
-         dncb =    # outcome
+         dncb =         # outcome
            c("+ve", "-ve")))
 
 mx 

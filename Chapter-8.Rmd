@@ -3,7 +3,7 @@ title: "Chapter 8: Logistic analysis"
 subtitle: "GSMS Basic Medical Statistics"
 output: 
   html_document:
-    code_folding: show
+    code_folding: hide
     theme: cerulean
     highlight: pygments
     css: ./lab.css
@@ -15,7 +15,7 @@ output:
 
 ```{r setup, include=FALSE}
 
-knitr::opts_chunk$set(echo = FALSE, 
+knitr::opts_chunk$set(echo = TRUE, 
                       warning = FALSE, 
                       message = FALSE, 
                       fig.align='center')
@@ -25,125 +25,352 @@ library(haven)
 library(gt)
 library(scales)
 library(modelsummary)
+library(table1)
+library(santoku)
+library(car)
+# library(janitor)
 theme_set(theme_minimal())
 
 
-options(digits = 3)
+options(digits = 4)
 
 ```
 
 ## Exercise 1
 
 
-Use the Low Birth Weight data (LOWBWT.SAV) to answer the following
-questions. The variable LOW is coded as 1 if the birth weight < 2500 grams (0 otherwise).
+Use the Low Birth Weight [dataset](/data/lowbwt.sav) to answer the following questions. The variable LOW is coded as 1 if the birth weight < 2500 grams (0 otherwise).
 
 (a) Is there a significant difference in LOW risk for children of black mothers and other mothers? Give the CI for the OR. (Hint: Use the last category as the reference.)
 
-**Answer**: Select the races “black” and “others” by Data – Select Cases – if condition is satisfied - If, and fill in: Race > 1. Create a two-by-two table: Analyze – Descriptive statistics – Crosstabs. Fill in the variables RACE and LOW, and check Statistics – Risk. 
+**Answer**: The code below loads the dataset, setting the reference levels for the low birthweight (reference: `normal`) and for `RACE` (reference: `others`).
 
-SPSS will calculate the OR for mothers from race = 2 (“black”) compared to mothers from race = 3 (“others”) to have the event in the first column, so not having a child with low birth weight. The OR we would like to see is the other way around, so we have to take the inverse: 1 / 0.812 = 1.23. Another way of getting this answer is by means of a logistic regression, indicating that RACE is categorical and taking the third group (“others”) as reference group. Also ask for the 95% CI for exp(B) in Options. 
+```{r ex1.1, echo=TRUE}
+
+bwt <- read_sav("data/lowbwt.sav") %>% 
+  mutate(
+    LOW.numeric = 1 - LOW,
+    LOW  = factor(LOW, labels = c("low", "normal")),
+    LOW  = fct_relevel(LOW, "normal"),
+    RACE = factor(
+      RACE, 
+      labels = c("white", "black", "others")
+      ), 
+    RACE = fct_relevel(RACE, "others")
+    ) 
 
 
-From this table, it is clear that RACE = 3 is the reference group (0 on both dummies). The OR of “black” to “others” is 1.23 (P=0.657); the 95% CI is 0.49 to 3.1. The risk of LOW for children of ‘black” mothers is not significantly different (P=0.657) from that of “others” mothers.
+bwt %>% 
+  table1(~RACE | LOW, data = ., overall = FALSE, caption = "Low birthweight distribution")
+
+
+```
+<br/>
+<br/>
+<br/>
+<hl>
+
+
+The odds of a low birthweight among "blacks" is $\frac{15}{11} = 1.36$, whereas the odds among "others" is $\frac{42}{25} = 1.68$. The ratio between these two odds is $\frac{15/11}{42/25} = 0.812$, indicating that the "black" category has a less lower birthweight rate than "others". A Chi-Square test yields a $\chi^2=5, df=2$ which is associated with a nearly significant p-value of 0.08.
+
+```{r ex1.2}
+
+
+with(
+  bwt, 
+  chisq.test(RACE, LOW)
+  )
+
+```
+
+
+Another way of getting this answer is by means of a logistic regression, indicating that RACE is categorical and taking the third group (others) as reference group. Also ask for the 95% CI for exp(B) in Options. 
+
+
+```{r ex1-3}
+
+glm(LOW ~ RACE, bwt, family = binomial) %>% 
+  tidy(exponentiate = TRUE, conf.int = TRUE)
+
+```
+
+This table shows that our reference group (RACE = "other") is associated with odds of low birthweight of $1.68$, which we saw from the direct calculation $\frac{15}{11} = 1.36$. 
+
+The odds-ratio of "black" to "others" is $0.812$ ($P=0.657$); the 95% CI is [0.323; 2.07]. The risk of LOW for children of "black" mothers is not significantly different (P=0.657) from that of “others” mothers.
 
 (b) Categorize AGE in 5 classes as in Figure 8.2.8, calculate the mean age (X) and the proportion of LOW children per class (P) and plot logit(P) against X.
 
 
 
-**Answer**: You may proceed as follows.
+**Answer**: This code creates the the diagram below, illustrating the low-birthweight data (black dots), the proportions of LBW in five age classes (blue dots) and the fitted logistic curve. 
 
-- Categorize age (Transform/Visual binning) into a new variable AGE5.
-Choose Age as the variable to bin – Continue – give a name to the new
-variable (e.g. AGE5) - make 5 classes by checking Make Cutpoints, choose
-“Equal percentiles based on Scanned cases” and type 4 for the number of
-cutpoints. (You will not find exactly the same 5 classes as used in the
-syllabus. If you want exactly the same classes, you can use Transform –
-recode into different variable and define the classes one by one).
-- Compute means of AGE and LOW in classes defined by AGE5 and save
-the results to a separate file: Use Data/Aggregate, select AGE5 as the
-Break variable and AGE and LOW as Aggregated variables; choose mean
-as the function (default choice); under Save choose for “Write a new data
-file containing only the aggregated variables”, click on OK. This creates a
-new SPSS file, AGGR.SAV, with the desired means.
-- Open the file AGRR.SAV, compute the logit of LOW_mean, and plot it
-against AGE_mean. Remember: logit = log(odds) = log(p/(1-p)).
 
+
+```{r ex5.b}
+
+# Create a dataset for the five age strata. For each strata calculate the mean age (age_bar) and the mean birth-weight (bwt_bar).
+bwt.AGE5 <- bwt %>% 
+  mutate(AGE5 = chop_equally(AGE, 5)) %>% 
+  summarise(
+    age_bar = mean(AGE), 
+    bwt_bar  = mean(as.numeric(LOW) - 1), 
+    .by = AGE5
+    ) 
+
+# Now show the observations, the binomial model of probabilities as well as the means of the stratified dataset. 
+bwt %>% 
+  mutate(LOW = as.numeric(LOW) - 1) %>% 
+  ggplot(aes(AGE, LOW)) + 
+  geom_jitter(height = .05, width = .5) + 
+  geom_smooth(
+    method = "glm", 
+    method.args = list(family = "binomial"), 
+    se = FALSE
+    ) + 
+  geom_point(
+    data = bwt.AGE5, 
+    aes(age_bar, bwt_bar), 
+    color = "blue"
+    ) + 
+  scale_y_continuous(
+    name = "Birthweight (dichotomized)",
+    breaks = c(0, 1), 
+    labels = c("normal", "low")
+    )
+
+```
+
+
+The age classes are: $\le18, [19-20], [21-23], [24-27] \text{ and } \ge28$ years; the class frequencies are 35, 59, 49, 26 and 20. 
 
 
 (c) Compare the fit of the model with AGE, SMOKE and RACE to that of the model with AGE and SMOKE. (Use the LR test.)
 
-**Answer**: In Model summary of the two models you will find the -2.log likelihood of the two models. Subtracting these values gives the value of the likelihood ratio statistic, LR=227.28-218.86=8.42. This is to be compared with the chisquared distribution with df=2. From Table C we find 0.01<P<0.02. (Note that this is close to the Wald test for RACE).
+**Answer**: In Model summary of the two models you will find the log likelihood of the two models. Subtracting these values gives the value of the likelihood ratio statistic, we find that the $2\cdot LR = 2\cdot -109.431 - (-113.638) = 8.42$. Under the null hypothesis, this statistics is distributed as a $\chi^2, df=2$. The probability of observing this statistic is therefore `pchisq(8.42, df = 2, lower.tail = FALSE) =` `r pchisq(8.42, df = 2, lower.tail = FALSE)`. 
+
+
+```{r ex1-c}
+
+m1 <- bwt %>% 
+  glm(LOW.numeric ~ AGE + SMOKE, data = ., family = "binomial")
+
+m2 <- bwt %>% 
+  glm(LOW.numeric ~ AGE + SMOKE + RACE, data = ., family = "binomial")
+
+m3 <- bwt %>% 
+  glm(LOW.numeric ~ AGE + (SMOKE + RACE)^2, data = ., family = "binomial")
+
+modelsummary(
+  title = "Three models of the low birthweight (outcome variable)", 
+  list(m1, m2, m3), 
+  estimate = "{estimate} ({std.error})", 
+  statistic = "p={p.value}{stars}",
+  stars = TRUE, 
+  gof_omit = "RMSE"
+  )
+
+lmtest::lrtest(m1, m2)
+
+
+```
 
 
 (d) Is effect of smoking different for different RACE-groups?
 
-**Answer**: On fitting a model with RACE, SMOKE and RACE*SMOKE (do not forget to
-define RACE being categorical!) we find that the interaction is not
-significant (Wald=3.02, df=2, P=0.22). The effect of smoking is thus not
-different in different RACE-groups.
+**Answer**: On fitting a model with RACE, SMOKE and RACE*SMOKE (see the third model in the table above) we find that the interaction is not significant. We do not have evidence for a different effect of smoking in different RACE-groups.
 
 
 
 ## Exercise 2
 
-Multiple logistic regression was used to construct a prognostic index to predict coronary artery disease from data on 348 patients with valvular heart disease who had undergone routine coronary arteriography before valve replacement (Ramsdale et al. 1982). The estimated equation was:
+Multiple logistic regression were used to construct a prognostic index to predict coronary artery disease from data on 348 patients with valvular heart disease who had undergone routine coronary arteriography before valve replacement (Ramsdale et al. 1982). The estimated equation was:
 $$
 \text{logit}(p) = \log(\text{Odds}) = \log\frac{p}{1-p} = b_0 + 1.167\cdot x_1 + 0.0106\cdot x_2 + \ldots
 $$
 
-where x1 stands for the family history of ischaemic disease (0=no, 1=yes) and x2 is the estimated total number of cigarettes ever smoked in terms of thousand cigarettes, calculated as the average number smoked annually times the number of years smoking.
+where $x_1$ stands for the family history of [Ischemia](https://en.wikipedia.org/wiki/Ischemia) (0=no, 1=yes) and $x_2$ is the estimated total number of cigarettes ever smoked in terms of thousand cigarettes, calculated as the average number smoked annually times the number of years smoking.
 
 (a) What is the estimated odds ratio for having coronary artery disease associated with a positive family history?
 
-**Answer**: e1.167 = 3.21.
+**Answer**: `exp(1.167) = ` `r exp(1.167)`.
 
 (b) What total number of cigarettes ever smoked carries the same risk as a positive family history? Convert the result into years of smoking 20 cigarettes per day.
 
-**Answer**: The log(OR) of positive history, 1.167, is to be set equal to 0.0106∙x2, where 0.0106 is the log(OR) of smoking 1000 cigarettes. Thus x2=1.167/0.0106=110.094 thousands of cigarettes. Dividing by 365∙20=7300, the total number cigarettes smoked in 1 year if smoking 20 cigarettes per day, we find 110094/7300=15.1. Thus the OR of positive history is equivalent to that of daily smoking of 20 cigarettes for about 15 years.
+**Answer**: The log(OR) of positive history, $1.167$, is to be set equal to $0.0106\cdot x_2$, where $0.0106$ is the log odds ratio of smoking 1000 cigarettes. 
+
+Thus $x_2=1.167/0.0106=110.094$ thousands of cigarettes. Dividing this result by $365\cdot20=7300$, or the total number cigarettes smoked in 1 year if smoking 20 cigarettes per day, we find $110094/7300=15.1$ or just above 15 years. Thus the odds ratio of positive history is equivalent to that of daily smoking of 20 cigarettes for about 15 years.
+
+
 
 (c) What is the odds ratio for coronary artery disease for someone with a positive family history who had smoked 20 cigarettes a day for 30 years compared to a non smoker with no family history?
 
-**Answer**: The total number of cigarettes smoked is 20 x 365 x 30 = 219000, so the odds ratio is exp(1.167 + 219∙0.0106) = 32.7.
+**Answer**: The total number of cigarettes smoked is $20 \cdot365\cdot30 = 219000$, so the odds ratio is $\exp(1.167 + 219\cdot 0.0106) = 32.7$
 
 
 
 
 ## Exercise 3
 
-Data from 37 patients receiving a non-depleted allogenic bone marrow transplant were examined to see which variables were associated with the occurrence of acute graft-versus-host disease (GvHD: 0=no, 1=yes) (Bagot et al., 1988). Possible predictors are TYPE (type of leukemia: 1=AML, acute myeloid leukaemia; 2=ALL, acute lymphocytic leukaemia; 3=CML, chronic myeloid leukemia), PREG (donor pregnancy: 0= no, 1=yes), and LOGIND (the logarithm of an index of mixed epidermal cell-lymphocyte reactions). Data are in a file EX8_3.SAV.
+Data from 37 patients receiving a non-depleted allogenic bone marrow transplant were examined to see which variables were associated with the occurrence of acute graft-versus-host disease (GvHD: 0=no, 1=yes) (Bagot et al., 1988).
+
+Possible predictors are 
+
+-   TYPE (type of leukemia: 1=AML, acute myeloid leukaemia; 2=ALL, acute lymphocytic leukaemia; 3=CML, chronic myeloid leukemia),
+-   PREG (donor pregnancy: 0= no, 1=yes) and
+-   LOGIND (the logarithm of an index of mixed epidermal cell-lymphocyte reactions). 
+
+Data are in a file EX8_3.SAV.
 
 (a) Examine separately the relation of each predictor with GvHD. What are your conclusions?
 
-**Answer**: To examine the relation between GvHD and TYPE and PREG chi-squared
-tests can be used (exact P-values P=0.024 and 0.023, respectively). We
-can compare LOGIND in the GvHD groups by the two sample t-test
-(P<0.001). Thus, in univariate analyses, all three explanatory variables are
-significantly related to GvHD.
-You can also use three simple logistic regressions:
+
+**Answer**: To examine the relation between GvHD and TYPE and PREG, we can try to use the chi-squared tests, but then we see that the expected values (under the null hypothesis) has one cell with an expected value that is lower than 5, violating the assumptions of the Chi-square test. 
+
+```{r 3.1a}
+options(digits = 3)
+ex8_3 <- read_sav("data/Ex8_3.sav") %>% 
+  mutate(
+    gvhd.numeric = gvhd, 
+    gvhd = factor(gvhd, labels = c("no", "yes")),
+    type = factor(type, labels = c("AML", "ALL", "CML")), 
+    type = fct_relevel(type, "CML"),
+    preg = factor(preg, labels = c("no", "yes"))
+    )
+
+chi <- with(
+  ex8_3, 
+  chisq.test(gvhd, type)
+  )
+
+chi$expected
+
+
+chi <- with(
+  ex8_3, 
+  chisq.test(gvhd, preg)
+  )
+chi$expected
+
+
+```
+
+This means that we cannot use the Chi-square test and need to use Fisher's exact test. Doing that in the code below, we can see that the relation between GvHD and TYPE is associated with p = 0.029 and its relationship with PREG is associated with p = 0.023. 
+
+```{r 3.1a_1}
+
+options(digits = 8)
+with(
+  ex8_3, 
+  fisher.test(gvhd, type)
+  )
+
+with(
+  ex8_3, 
+  fisher.test(gvhd, preg)
+  )
+
+
+```
+
+Both the type and the pregnancy status have a siginificant effect on the result at the 5% level. We can compare LOGIND in the GvHD groups by the two sample t-test
+
+```{r 3.1a_2}
+
+with(
+  ex8_3, 
+  t.test(logind ~ gvhd)
+  )
+
+```
+
+A Welch two sample t-test shows a significant result (P<0.001). Thus, in univariate analyses, all three explanatory variables are significantly associated to GvHD. We can also run three simple logistic regressions, yielding similar conclusions:
+
+```{r 3.1a_3}
+
+m1 <- glm(gvhd.numeric ~ type, ex8_3, family = "binomial")
+m2 <- glm(gvhd.numeric ~ preg, ex8_3, family = "binomial")
+m3 <- glm(gvhd.numeric ~ logind, ex8_3, family = "binomial")
+
+Anova(m1, type = 3)
+Anova(m2, type = 3)
+Anova(m3, type = 3)
+
+```
+
 
 (b) Carry out a multiple logistic regression analysis with predictors which were significant in (a). Which variables are now significantly related to GvHD? Interpret the results in terms of odds ratios.
 
-**Answer**: LOGIND: OR=4.30, P=0.053; PREG: OR=12.2, P=0.023; TYPE: P=0.126 (OR’s of AML:CML and ALL:CML are smaller than 1). Pregnancy has significantly (at 5% level) higher risk of GvHD. No significant effect of LONGIND and TYPE was found.
+```{r 3.1b}
+m4 <- ex8_3 %>% 
+  select(-gvhd, -patient) %>% 
+  glm(gvhd.numeric ~ ., data = . , family = "binomial")
+
+modelsummary(
+  title = "Modelling GvHD (outcome variable)",
+  list(m1, m2, m3, m4), 
+  exponentiate = TRUE,
+  estimate = "{estimate} ({std.error})", 
+  statistic = "p={p.value}{stars}",
+  stars = TRUE, 
+  gof_omit = "RMSE|F"
+  )
+
+```
+
+
+**Answer**: LOGIND: OR=4.30, P=0.053+; PREG: OR=12.2, P=0.023*; TYPE: P=0.126 (OR’s of AML:CML and ALL:CML are smaller than 1). Pregnancy has significantly (at 5% level) higher risk of GvHD. No significant effect of LONGIND and TYPE was found.
 
 
 
 (c) Give the 90% confidence intervals for the odds ratios.
 
-**Answer**: You can change in Options in the logistic regression window the default
-95% for the CI into 90%, and run the analysis again.
-LOGIND: 1.24 to 14.87; PREG: 1.98 to 74.6; AML:CML: 0.02 to 0.87;
-ALL:CML: 0.01 to 0.78.
+**Answer**: You can change in Options in the logistic regression window the default 95% for the CI into 90%, and run the analysis again.
+
+```{r 3.1c}
+m4 %>% 
+  tidy(conf.int = TRUE, conf.level = 0.90, exponentiate = TRUE)
+
+```
+-   AML:CML: 0.012 to 0.781;
+-   ALL:CML: 0.01 to 0.692;
+-   PREG: 2.26 to 91.6; 
+-   LOGIND: 1.42 to 18.3; 
+
+
+
 
 
 (d) After inspection of the results, investigators note that there are hardly any differences between ALL and AML and decide to fit a model with, instead of TYPE, only an indicator variable for CML. Carry out this analysis. What are your conclusions? Comment on the appropriateness of the method of model building.
 
-**Answer**: In the dataset Ex8_3A.sav, the binary variable is available.
-The OR of ALL:CML becomes significant at 5% level (P=0.042).
+**Answer**: By collapsing the levels `AML` and `ALL` into one level (CML = `no`), we see OR of CML (yes vs. no) becomes significant at 5% level (P=0.042).
+
+```{r 3.1d}
+
+str(ex8_3)
+
+ex8_3 %>% 
+  mutate(
+    CML = fct_collapse(
+      type, 
+      no = c("AML", "ALL"),
+      yes = "CML"
+      ), 
+    CML = fct_relevel(CML, "no")
+    ) %>% 
+  glm(gvhd.numeric ~ CML + preg + logind, data = . , family = "binomial") %>% 
+  modelsummary(exponentiate = TRUE,
+  estimate = "{estimate} ({std.error}) p={p.value}{stars}", 
+  statistic = NULL,
+  stars = TRUE, 
+  gof_omit = "RMSE|F"
+  )
+
+```
+
+
 Two comments on this:
 
-- Do we have a theoretical base for combining the groups ALL and AML
-to compare the combined group to CML?
+- Do we have a theoretical base for combining the groups ALL and AML to compare the combined group to CML?
 - Reducing the number of categories of a categorical variable (deleting dummy variables from the model) on basis of tests raises the issue of multiple comparisons: the actual significance level becomes higher than the nominal level of 5%. Without a control of the type I error the analysis becomes explorative and should be reported as such.
 
 
