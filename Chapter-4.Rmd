@@ -1,0 +1,202 @@
+---
+title: "Chapter 4: Principles of statistical analysis"
+subtitle: "GSMS Basic Medical Statistics"
+output: 
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    highlight: pygments
+    css: ./lab.css
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true   
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE, 
+                      warning = FALSE, 
+                      message = FALSE, 
+                      fig.align='center')
+library(tidyverse)
+library(broom)
+library(haven)
+library(gt)
+library(scales)
+library(modelsummary)
+theme_set(theme_minimal())
+
+options(digits = 3)
+
+```
+
+## Exercise 1
+
+
+There are two hospitals in town. On average 45 deliveries take place each day in the larger hospital, and 15 in the smaller. The probability of a baby being a boy is about 0.52, and the probability of twins is about 0.012. On any day which hospital is more likely
+
+(a) to have a set of twins delivered
+
+**Answer** The larger hospital, simply because there are more births. (This question is about an absolute number: a set of twins). The probability that the delivery in the small hospital will concern twins equals 0.012. The same is true for each delivery in the larger hospital, but since we have 1000 deliveries, we expect 12 of them the concern twins.
+
+
+
+
+(b) to have more than 60 % of babies being boys?
+
+**Answer** The day to day variation in the proportion of boys will be greater in the smaller hospital, so it is more likely to have more than 60 % of babies being boys on any day. (This question is about a relative number: 60% of the babies). Take a very small hospital (only one delivery per day) and a very large hospital (1000 deliveries a day). In the small hospital, the probability that the child is a boy is 0.52. If a boy is born, 100% of the babies is a boy. This will happen in 52% of the days. For the larger hospital, we expect to see 520 boys and 480 girls on an arbitrary day. Some days there will be more than 520 boys, other days there will be less than 520 boys. But the probability that more than 60% of the children (more than 600 out of 1000) will be boys, is very small. For sure smaller than 0.52.
+
+
+
+## Exercise 2
+
+Eight diabetic patients had plasma glucose levels (mmol / l) measured before and one hour after oral administration of 100g glucose (Feingold e.a., 1989), with the following results
+
+```{r img-Q4.2, echo=FALSE}
+knitr::include_graphics("img/Q4.2.png")
+```
+
+
+(a) Calculate the standard error of the mean change in plasma glucose.
+
+
+
+**Answer** The SE of the mean is $\frac{\sigma}{\sqrt{n}}$. We cannot observe the population standard deviation $\sigma$ so we have to estimate it using the sample standard deviation, $s$. Calculate it using R in the following way: 
+
+```{r 4.2_a}
+
+x <- c(0.77, 5.14, 3.38, 1.44, 5.34, -0.55, -0.72, 2.89)
+sd.err <- sd(x) / sqrt(length(x))
+
+t <- t.test(x)
+t
+
+```
+
+And the one-sided t-test shows that the standard error is `sd.err` = `r sd.err`. Alternatively, we can use the result of the t-test is `r t$stderr`. 
+
+(b) Give a 95 % CI for the mean change based on these data (Assume that the Normal distribution is the appropriate sampling distribution for the change in plasma glucose).
+
+**Answer**  Since the population standard deviation $\sigma$ is unknown, we use the sample sd as an estimate. As a consequence we cannot use the z-value 1.96 in constructing a 95% confidence interval nor a 95% reference interval. From the result of our t test we can see that the number of degrees of freedom is `t$parameter` = `r t$parameter`, and the critical value $t_{df, 1-\alpha/2}$ can be calculated as `qt(0.975, df = 7)` = `r qt(0.975, df = 7)`. The formula for the 95% confidence interval is: 
+
+
+
+$$
+CI = \bar{X} \pm t_{df, 1-\alpha/2} \cdot\frac{\sigma}{\sqrt{n}} 
+$$
+
+The confidence interval can also be directly extracted from our t test. It is therefore `t$conf.int ` = $[$ `r t$conf.int` $]$.
+
+
+(c) On the basis of these data, how many diabetic patients would need to be studied so that the width of the 95% CI for the mean change was 0.5 mmol per liter? 
+
+
+**Answer**:  with a larger n, the coefficient for the 95% CI will be around 1.96, so the CI will look like $[\bar{x} - 1.96\cdot SE , \bar{x} + 1.96\cdot SE]$. The width of this interval is $2\cdot1.96\cdot SE$. So we need to solve the equation: 
+
+$$
+2\cdot1.96\cdot\frac{\sigma}{\sqrt{n}} = 0.5
+$$
+Where we estimate the $\sigma$ by using the sample standard deviation of our sample $s = 2.3629$. We thus have
+
+$$
+2\cdot1.96\cdot\frac{s}{0.5} = \sqrt{n}
+$$
+
+
+We would thus find that $n \approx (2*1.96*2.3629/.5)^2 = 343$. We need a sample of about $n \ge 343$ to obtain a confidence interval that is about 0.5 mmol per liter or less. 
+
+
+
+
+
+
+
+## Exercise 3
+
+
+(a) In a clinical trial in which a total of 100 patients are allocated to two treatments A and B by simple randomization (tossing a coin for each new patient). Calculate the probability that the difference between the numbers of patients in the two treatment groups exceeds 20. (Hint: the number of individuals in one treatment group (for example A) follows a Binomial
+distribution).
+
+
+**Answer**:  Another way of phrasing the question is: ‘What is the probability of the number in one group being less than 40 or more than 60?’. The sampling distribution for the number of patients allocated a particular treatment is the Binomial distribution. We thus need to calculate the two probabilities and sum them up. This can be done as follows:  
+
+```{r ex3-a}
+p.less_than.40 <-  pbinom(39, 100, 0.5)
+p.more_than.60 <-  1 - pbinom(60, 100, 0.5)
+
+```
+
+And we find that the sum `p.less_than.40 + p.more_than.60` = `r p.less_than.40 + p.more_than.60`, so the probability is about 3.5% to find a difference between the numbers of patients in the two treatment groups exceeds 20. 
+
+(b) Do you know a way to randomly allocate exactly 50 patients to each group?
+
+
+
+**Answer** A way to allocate randomly exactly 50 patients to each group could be preparing 100 envelopes in advance, 50 containing a note "treatment A" and 50 containing a note "treatment B" and giving each patient an envelope at random.
+
+
+## Exercise 4
+
+
+The Dutch government intends to start a campaign against drinking alcoholic beverages if over 50% of the adolescents drink alcoholic beverages regularly (at least once a week). A random sample of 200 adolescents is taken and 128 admit that they drink alcohol regularly (we assume all 200 speak the truth). Test the null hypothesis that 50 % of the Dutch adolescents drink alcohol, take $\alpha = 0.05$. What is your conclusion?
+
+**Answer**: We want to test the following hypothesis: 
+
+$$
+H_0: \pi = \frac{1}{2} \\
+H_1: \pi \ne  \frac{1}{2}
+$$
+
+And using the exact binomial test in R, we can calculate the following: 
+
+```{r ex4.1, echo=TRUE}
+
+b <- binom.test(x = 128, n = 200, p = 0.5)
+b
+
+```
+
+The p.value is `b$p.value` = `r format(b$p.value)` and the confidence interval for $\pi$ is `b$conf.int` = `r format(b$conf.int)`. These are the exact values, but for didactic purposes we might want to compare this result to the normal approximation of the binomial distribution, setting the parameters such that the mean of the normal distribution $\mu = p$ and its standard deviation is $\sigma=\sqrt{\frac{p\cdot(1-p)}{n}}$. Since we have $x=128$ "successes" in a sample of $n = 200$, we estimate mean $\mu =  p = 128/200 $ and the standard deviation of $\sigma = \sqrt{\frac{p\cdot(1-p)}{n}}=\sqrt{\frac{128\cdot(200-128)}{200^3}}\approx0.034$
+
+```{r  ex4.2, echo=FALSE}
+
+# Setting mu and sd, the parameter of the normal approximation
+mu <- 128 / 200
+sd <- sqrt((128*(200 - 128))/(200^3))
+
+# Setting the 
+norm.approx <- function(x) dnorm(x, mu, sd)
+ci_95 <- qnorm(c(.025, .5, .975), mean = mu, sd)
+
+
+ggplot() + 
+  geom_function(fun=norm.approx, xlim=c(0.5, .8), alpha = .5) + 
+  geom_area(
+    mapping = aes(ci_95), 
+    stat = "function", 
+    fun=norm.approx, 
+    xlim=ci_95[c(1,3)],
+    color = NA,
+    fill= "red", 
+    alpha = .5
+    ) + 
+  scale_x_continuous(
+    breaks = round(ci_95, 2), limits = c(0.5, .8)
+    ) + 
+  labs(
+    title = "Binomial distribution", 
+    subtitle = "Normal approximation",
+    x = NULL,
+    y = "Density"
+    ) + 
+  theme(text = element_text(size = 14))
+  
+
+
+
+
+```
+
+
+
