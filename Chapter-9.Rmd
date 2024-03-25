@@ -3,7 +3,7 @@ title: "Chapter 9: Survival analysis"
 subtitle: "GSMS Basic Medical Statistics"
 output: 
   html_document:
-    code_folding: show
+    code_folding: hide
     theme: cerulean
     highlight: pygments
     css: ./lab.css
@@ -15,7 +15,7 @@ output:
 
 ```{r setup, include=FALSE}
 
-knitr::opts_chunk$set(echo = FALSE, 
+knitr::opts_chunk$set(echo = TRUE, 
                       warning = FALSE, 
                       message = FALSE, 
                       fig.align='center')
@@ -29,6 +29,7 @@ theme_set(theme_minimal())
 library(ggfortify)
 library(survival)
 library(marginaleffects)
+library(table1)
 
 
 options(digits = 3)
@@ -38,19 +39,38 @@ options(digits = 3)
 ## Exercise 1
 
 
-File Ex9_1.sav contains data from a small experiment concerning motion sickness at sea (Burns, 1984). Subjects were placed in a cabin subjected to vertical motion for two hours. The outcome variable was the waiting time to emesis (vomiting). Some subjects requested an early stop to the experiment although they had not vomited, yielding censored observations, while others successfully survived two hours. The experiment was carried out with two "treatments": two combinations of movement accelerations and frequency. One combination was used for a group of 21 subjects, the other in a different group of 28 subjects.
+File [Ex9_1.sav](/data/ex9_1.sav) contains data from a small experiment concerning motion sickness at sea (Burns, 1984). Subjects were placed in a cabin subjected to vertical motion for two hours. The outcome variable was the waiting time to emesis (vomiting). Some subjects requested an early stop to the experiment although they had not vomited, yielding censored observations, while others successfully survived two hours. The experiment was carried out with two "treatments": two combinations of movement accelerations and frequency. One combination was used for a group of 21 subjects, the other in a different group of 28 subjects.
 
 
+
+
+```{r ex1, echo=FALSE}
+
+ex9 <- read_sav("data/ex9_1.sav")
+ex9 %>% 
+  mutate(
+    censor =   factor(censor, labels = c("censored", "event")),
+    `Experiment Group` = factor(expgroup, labels = c("group 1", "group 2"))
+  ) %>% 
+table1(~`Experiment Group` | censor, data = ., overall = FALSE)
+
+```
+
+<br/>
+<br/>
+<br/>
+<br/>
+ 
+ 
 (a) Calculate and plot Kaplan-Meier estimates of survival probabilities in the two groups.
 
 
 
 **Answer**: See Lecture 8 slides for Kaplan-Meier curves and [R documentation](https://cran.r-project.org/web/packages/ggfortify/vignettes/plot_surv.html) on producing the plots.
 
-```{r ex9a}
-ex9 <- read_sav("data/ex9_1.sav") # %>% 
-  # mutate(across(1:3, ~ as.numeric(.x)))
+```{r ex1-a}
 
+ex9 <- read_sav("data/ex9_1.sav")
 fit <- survfit(Surv(stime, censor) ~ expgroup, data = ex9)
 autoplot(fit) + 
   labs(
@@ -155,7 +175,7 @@ ex9 %>%
 
 Subfertile women with a child wish may receive an in-vitro fertilization (IVF) treatment. In an observational study the waiting time until pregnancy was recorded. The women undergoing the IVF treatment were categorized (prior to the start of the treatment) in four groups, A, B, C and D, with respect to the type of infertility. The waiting times – some of them censored - of the groups were compared by means of Cox regression with the group variable entered as a categorical variable. The P-value of the Wald test with 3 df was 0.095. The dummy-variables v1, v2 and v3 were defined as follows:
 
-```{r img-2, eval=FALSE}
+```{r img-2, echo=FALSE}
 knitr::include_graphics("img/ch9-img-2.png")
 
 ```
