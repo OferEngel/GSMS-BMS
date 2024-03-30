@@ -1,0 +1,512 @@
+---
+title: "Chapter 7: Correlation and linear regression analysis"
+subtitle: "GSMS Basic Medical Statistics"
+output: 
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    highlight: pygments
+    df_print: paged
+    css: ./lab.css
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true   
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE, 
+                      warning = FALSE, 
+                      message = FALSE, 
+                      fig.align='center', 
+                      df_print = "paged")
+library(tidyverse)
+library(broom)
+library(haven)
+library(gt)
+library(scales)
+library(modelsummary)
+library(ggfortify)
+library(patchwork)
+library(car)
+library(lmtest)
+
+options(digits = 3)
+theme_set(theme_minimal())
+
+```
+
+
+
+## Exercise 1
+
+(a) Open the file Ex7_1.sav and create a scatter-plot of total lung capacity (TLC) against age. Does the relation look linear to you?
+
+
+**Answer**: The relation does not look terribly linear. 
+
+```{r ex1-a, fig.height=2}
+tlc <- read_sav("data/Ex7_1.sav")
+tlc %>% 
+  ggplot(aes(age, tlc)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE)
+
+```
+
+
+
+(b) Select all persons younger than 26 years. Perform a linear regression of tlc on age for this subgroup (meaning: tlc is the outcome variable, age the explanatory variable). Interpret the results, check the assumptions and draw your conclusions.
+
+**Answer**: Among subjects younger than 26 there seems to be a more pronounced linear relationship between tlc and age. 
+
+```{r ex1-b-1, fig.height=2}
+
+tlc_under_26 <- tlc %>% 
+  filter(age < 26)
+
+tlc_under_26 %>% 
+  ggplot(aes(age, tlc)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE)
+
+```
+
+Also normality (Q-Q Plot) and homogeneity of variance seem OK, as can be seen in the figures below: 
+
+
+
+```{r ex1-b-2, fig.height=2}
+
+
+
+m <- tlc_under_26 %>% 
+  lm(tlc ~ age, data = .)
+
+autoplot(m, which = 1:2)
+
+
+
+summary(m)
+
+```
+
+
+The estimated regression line is $Y_{tlc}= - 1.25 + 0.39\cdot X_{age}$, and the P-value for the regression coefficient is smaller than 0.001, so the relation is significant. The adjusted R square indicates that about 77% of the variation of tlc is explained by age.
+
+
+## Exercise 2
+
+The following table shows [resting metabolic rate](https://en.wikipedia.org/wiki/Resting_metabolic_rate) (RMR kcal/24 hr) and body weight (kg) of 44 women (Owen et al, 1986). You can find all data in Ex7_2.sav.
+
+
+```{r ex2}
+
+rmr <- read_sav("data/Ex7_2.sav")
+rmr %>% 
+  select(weight, rmr)
+
+
+```
+
+
+
+(a) Perform a linear regression analysis of RMR on body weight.
+
+```{r ex2-a}
+
+rmr %>% 
+  lm(rmr ~ weight, data = .) %>% 
+  summary()
+
+```
+
+
+
+**Answer**: The linear regression equation is $Y_{RMR} = 811.23 + 7.06\cdot X_{weight}$ and the residual SD is about 158 kcal/24 hr.
+
+
+(b) Examine the distribution of the residuals. Is the analysis valid?
+
+**Answer**: The scatter diagram below shows no obvious relation between the residuals and the predicted values. The distribution of the residuals seems reasonably normal. Overall, there is no reason to reject the validity of the analysis.
+
+```{r ex2-b, fig.height=3}
+rmr %>% 
+  lm(rmr ~ weight, data = .) %>% 
+  autoplot(which = 1:2)
+
+```
+
+
+(c) Obtain a 95 % CI for the slope of the line.
+
+
+**Answer**: The SE of the slope of the regression line is 0.978 kcal/24 hr, so the 95 % CI is $7.06 \pm 2.02\cdot 0.978$ or 5.09 to 9.03 kcal/24 h, where the critical value can be calculated as `qt(c(.025, .975), df = 44 - 2)` = `r qt(c(.025, .975), df = 44 - 2)`
+
+
+
+```{r ex2-c}
+rmr %>% 
+  lm(rmr ~ weight, data = .) %>% 
+  tidy(conf.int = TRUE)
+
+```
+
+
+(d) Is it possible to use an individual’s weight to calculate a 95% prediction interval for RMR with a width smaller than 250 kcal/24 hr?
+
+**Answer**: The SD of the residuals is 158 kcal/24 hr, so the narrowest prediction interval (at the mean of body weight) is about twice this amount either side of the predicted value. Thus it is not possible to predict RMR from body weight to within 250 kcal/24 hr.
+
+
+
+## Exercise 3
+
+A simple linear regression has been performed of blood pressure on sex. Sex was coded as 0 for men and 1 for women. The regression equation was estimated as $Y = 130 + 7\cdot sex$.
+
+
+(a) What would have been the estimates for the regression coefficients (intercept and slope) if the coding of sex had been 1 for men and 0 for women? What would have been the effect on the P-value for the slope?
+
+
+**Answer**: (a) From the regression equation we know that the mean blood pressure of men is 130 and the mean blood pressure of women equals 137. If the coding of sex will be changed into 0 = women and 1 = men, the intercept will become the mean of the women (137) and the slope will become -7. The regression equation will be $Y = 137 – 7\cdot sex$. The P-value will not change (remember: the results of a simple linear regression with a binary explanatory variable, is equivalent to performing an independent samples t-test assuming equal variances. The coding for sex, used is this t-test will not affect the results of the t-test, so it will not affect the results of the linear regression).
+
+
+(b) What would have been the estimates for the regression coefficients (intercept and slope) if the coding of sex had been 1 for men and 2 for women? What would have been the effect on the P-value for the slope?
+
+**Answer**: The slope of the line will stay the same (7), but the intercept will change: $Y = 123 + 7\cdot sex$. Again, there will be no effect on the P-value of the slope.
+
+## Exercise 4
+
+[Digoxin](https://en.wikipedia.org/wiki/Digoxin) is a drug that is largely eliminated unchanged in the urine. Its renal clearance was said to be (a) correlated with [creatinine clearance](https://en.wikipedia.org/wiki/Assessment_of_kidney_function#Glomerular_filtration_rate) and (b) independent of urine flow. The following table shows (a part of the) measurements of these three variables from 35 consecutive inpatients being treated with digoxin for congestive heart failure (Halkin et al., 1975). Do these data support statement (a) and (b)?
+
+
+**Answer**: Creatinine Clearance (CC) and Digoxin Clearance (DC) both seem to be non-normally distributed. 
+
+
+```{r ex-4-1}
+
+ex4 <- read_sav("data/Ex7_4.sav")
+
+pcc.1 <- ex4 %>% 
+  ggplot(aes(x = creatcl)) + 
+  geom_histogram(binwidth = 5) + 
+  labs(y = NULL)
+
+pcc.2 <- ex4 %>% 
+  ggplot(aes(sample = creatcl)) + 
+  geom_qq() + 
+  geom_qq_line()  + 
+  labs(y = NULL, x = NULL)
+
+
+pdc.1 <- ex4 %>% 
+  ggplot(aes(x = digoxcl)) + 
+  geom_histogram(binwidth = 5) + 
+  labs(y = NULL)
+
+
+pdc.2 <- ex4 %>% 
+  ggplot(aes(sample = digoxcl)) + 
+  geom_qq() + 
+  geom_qq_line() + 
+  labs(y = NULL, x = NULL)
+
+(pcc.1 + pcc.2) / (pdc.1 + pdc.2)
+
+
+```
+
+
+Because of the non-normal distributions, we can look at Spearman’s correlation test, obtaining the following conclusions: 
+
+```{r ex-4-2}
+with(
+  ex4, 
+  cor.test(creatcl, digoxcl, method = "spearman")
+  )
+
+with(
+  ex4, 
+  cor.test(creatcl, urflow, method = "spearman")
+  )
+
+```
+
+
+
+This would lead to the conclusions that both CC and Urine Flow are significantly related to DC supporting statement (a), but not statement (b). Alternatively, after log transformation of CC and DC, Pearson’s coefficients will lead us to the same conclusions.
+
+
+## Exercise 5
+
+Twenty-two patients undergoing cardiac bypass surgery were randomized to one of three ventilation groups, the data are in file Ex7_5.sav (see also exercise 5.6). Use a linear regression to test for the effect of group on red cell [folate levels](https://en.wikipedia.org/wiki/Folate_deficiency). Compare the results of the regression analysis with the results of a one way ANOVA.
+
+**Answer**: Ventilation group is a nominal (categorical) variable, with three levels (groups 1, 2 and 3). So the linear regression will automatically create dummy variables for each level except for the reference level. 
+
+```{r ex5}
+
+ex5 <- read_sav("data/Ex7_5.sav") %>% 
+  mutate(group = factor(group))
+
+lm(rcfl ~ group, ex5) %>% 
+  summary()
+
+lm(rcfl ~ group, ex5) %>% 
+  anova()
+
+
+aov(rcfl ~ group, ex5) %>% 
+  summary()
+
+```
+
+
+The ANOVA-table of the linear regression gives a P-value of 0.044, which is the same of the P-value of the one-way ANOVA. Also the results from the estimates of the coefficients in the linear regression lead to the same results as the descriptive information (means) in the one way ANOVA.
+
+Using group 1 as the reference group and the dummies for group 2 and  for group 3, we get in the linear regression: 
+
+$$
+y_{rcfl} = 316.6 – 60.2\cdot\text{group}_2 – 38.6\cdot\text{group}_3
+$$
+
+The estimated means for the groups are:
+
+-   Group 1: $316.6$ 
+-   Group 2: $316.6 - 60.2 = 256.4$
+-   Group 3: $316.6 - 38.6 = 278.0$
+
+
+**Remark**: checking the assumption of homogeneity of variances of the residuals gives an unsatisfactory result; the variances in the groups seem to differ. In fact, Levene's test appears to be significant, so the result of the analyses (both linear regression aand Oneway ANOVA) are questionable in this case.
+
+
+## Exercise 6
+
+In data file Ex7_6.sav you can find data from 25 patients with cystic fibrosis. Find the best model to predict Functional Residual Capacity (FRC), using the variables age, sex, height, weight and FEV1 as possible explanatory variables. Check the assumptions of the regression analysis.
+
+**Answer**: Starting with all variables in the equation and removing the non-significant variables with the lowest standardised coefficient step by step yields: 
+
+
+```{r ex6-1}
+
+ex6 <- read_sav("data/Ex7_6.sav") 
+
+lm(frc ~ age + fev1, ex6) %>% 
+  summary()
+
+```
+
+
+OR the following model:
+
+$$
+FRC = 286.94 – 4.20\cdot age – 2.04\cdot FEV_1
+$$
+
+The value of the adjusted $R^2 = 0.63$, indicating that the model explains a good proportion of variability in FRC. Inspecting the plots reveal a normal distribution of the residuals, but the scatter plot of  residuals against predicted values suggests a parabolic shape. 
+
+```{r ex6-2}
+
+lm(frc ~ age + fev1, ex6) %>% 
+  autoplot(which = 1)
+
+```
+
+
+Plotting the residuals against both age and FEV1 suggests quadratic relationships. Extending the model with either $age^2$ and $FEV1^2$ gives a better model with residuals fulfilling the assumptions in a more satisfactory way. 
+
+```{r ex6-3}
+m1 <- lm(frc ~ age + fev1, ex6)
+m2 <- lm(frc ~ age + fev1 + I(age^2), ex6)
+
+modelsummary(
+  list(m1, m2), 
+  stars = TRUE,   
+  estimate = "{estimate} ({std.error}){stars}",
+  statistic = NULL,
+  gof_omit = "F|Log"
+  )
+
+
+```
+
+
+
+Plotting the residuals against predicted value based on the model with three explanatory variables: fev1, age and age square yields the following figure: 
+
+```{r ex6-4}
+autoplot(m2, which = 1)
+
+```
+
+
+
+## Exercise 7
+
+In the datafile Ex7_7.sav there are three variables, Age, Sex (0 = male, 1 = female) and SBP (Systolic Blood Pressure in mm Hg).
+
+a) Is SBP related to Age, ignoring Sex?
+
+
+
+```{r ex7-1}
+
+ex7 <- read_sav("data/Ex7_7.sav") %>% 
+  mutate(sex = factor(sex, labels = c("male","female")))
+
+m1 <- lm(sbp ~ age, ex7) 
+m2 <- lm(sbp ~ sex, ex7) 
+m3 <- lm(sbp ~ age + sex, ex7) 
+m4 <- lm(sbp ~ age + sex + age * sex, ex7) 
+modelsummary(
+  list(m1, m2, m3, m4), 
+  estimate = "{estimate} ({std.error}){stars}",
+  statistic = NULL,
+  stars = TRUE, 
+  gof_omit = "F|Log"
+  )
+
+```
+
+
+**Answer**: a) yes, SBP is related to Age; P < 0.001
+
+b) Is SBP related to Sex, ignoring Age?
+
+**Answer**: yes, SBP is related to Sex; Every additional year in age is associated with 0.718 points in systolic blood pressure (P < 0.001)
+
+
+c) Are Age and Sex both significant in a multiple linear regression?
+
+**Answer**: also in a multiple linear regression Age and Sex are significant (P < 0.001 for both variables). 
+
+
+d) Is the effect of Age on SBP the same in men and women? Give a 95 % CI for the difference in slopes. (Make a new variable which is the interaction between Age and Sex).
+
+**Answer**: first, we have to calculate the interaction variable Sex*Age. The estimated linear
+regression equation is: 
+
+$$
+SBP = 131.7 – 24.0\cdot sex + 0.430\cdot age + 0.431\cdot sex\cdot age
+$$
+
+
+Realizing that Sex is coded as 0 for the men and 1 for the women this leads to:
+
+-   Men: $SBP = 131.7 + 0.430\cdot age$
+-   Women: $SBP = 131.7 – 24.0 + 0.430\cdot age + 0.431\cdot age = 107.7 + 0.861\cdot age$
+
+
+The difference in slopes is 0.431 (the coefficient of the interaction term). The interaction is significant so the lines are not parallel; SBP increases significantly faster with age for women than for men.
+
+```{r ex7-2}
+
+
+
+ex7 %>% 
+  ggplot(aes(age, sbp, color = sex)) + 
+  geom_jitter(width = .4, height = 0, alpha = .4) + 
+  geom_smooth(method = "lm", se = FALSE)
+
+```
+
+
+In this scatter-plot two lines have been drawn for the subgroups men and women separately. The equations of the
+lines in the scatterplot clearly show that the slope of the women’s line is steeper than that of the men’s slope.
+
+
+## Exercise 8
+
+Make a scatter plot of SBP and Age (use the data from Ex7_7.sav). Plot the 95 % confidence intervals for the mean SBP in the graph. What is the 95 % CI for the mean SBP of 80 years old people? Try to estimate the CI from the graph.
+
+**Answer**: From the graph, it is hard to see the exact limits of the 95% CI, but it is possible to use the `predict` function to find the model's predictions of the expected sbp for a person who is 80 years old, as well as the associated confidence intervals. 
+
+```{r ex8}
+
+options(digits = 4)
+pred.80 <- predict(m1, data.frame(age = 80), interval = "confidence")
+
+
+ex7 %>% 
+  ggplot(aes(x = age, y = sbp)) + 
+  geom_jitter(width = .4, height = 0, alpha = .4) + 
+  geom_smooth(method = "lm") + 
+  geom_segment(
+    x = 80, 
+    xend = 80, 
+    y = 0, 
+    yend = pred.80[1], 
+    color = "red", 
+    linetype = "dashed", 
+    linewidth = 1
+    ) + 
+  geom_segment(
+    x = 0, 
+    xend = 80, 
+    y = pred.80[1], 
+    yend = pred.80[1], 
+    color = "red", 
+    linetype = "dashed", 
+    linewidth = 1
+    ) + 
+  theme(text = element_text(size = 16)) + 
+  scale_y_continuous(breaks = seq(100, 250, 25))
+
+```
+
+Using the predict function, we see that the prediction for the expected value of sbp for a person of 80 years old is `pred.80[1]` = `r pred.80[1]` whereas the 95 % CI for the intercept is [`r pred.80[2]` ; `r pred.80[3]`]. 
+
+
+## Exercise 9
+
+The data file Ex7_9.sav contains four variables: birth weight, age, race and smoke. The birth weight was measured on a newborn, the last three variables are features of the mother.
+
+
+a) Perform linear regressions for birth weight on each explanatory variable separately.
+
+**Answer**: Age is not significantly related to birth weight: P = 0.219. 
+
+Smoke is significantly related to birth weight: P = 0.009
+Race (recoded to two dummy variables) is significantly related to birth weight: P = 0.008. 
+
+In the code below, we use the [`modelsummary` package](https://modelsummary.com/vignettes/modelsummary.html) to produce professionally looking summaries of our estimates.
+
+
+
+```{r ex9-1}
+
+ex9 <- read_sav("data/Ex7_9.sav") %>% 
+  mutate(race  = factor(race, labels = c("white", "black", "other"))) %>% 
+  mutate(smoke = factor(smoke, labels = c("no", "yes")))
+
+m1 <- lm(bwt ~ age,   ex9) 
+m2 <- lm(bwt ~ smoke, ex9) 
+m3 <- lm(bwt ~ race,  ex9) 
+modelsummary(
+  list(m1, m2, m3), 
+  estimate = "{estimate} ({std.error}){stars}",
+  statistic = "p = {p.value}",
+  stars = TRUE, 
+  gof_omit = "F|Log"
+  )
+
+Anova(m3, type = "3")
+
+```
+
+
+b) Test if a linear regression model for birth weight on smoke and race is  significantly better than a model with smoke only.
+
+**Answer**: We use the `anova` function to compare between the two models and we find a significant reduction in the residual sum of squares, associated with a P < 0.001. The diagnostic plots show no serious deviances from the assumptions.
+
+
+```{r ex9-2}
+
+m2 <- lm(bwt ~ smoke, ex9) 
+m4 <- lm(bwt ~ smoke + race,  ex9) 
+anova(m2, m4)
+
+
+autoplot(m4, which = 1:2)
+
+```
+
