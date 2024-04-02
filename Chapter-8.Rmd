@@ -39,7 +39,7 @@ options(digits = 4)
 ## Exercise 1
 
 
-Use the Low Birth Weight [dataset](/data/lowbwt.sav) to answer the following questions. The variable LOW is coded as 1 if the birth weight < 2500 grams (0 otherwise).
+Use the Low Birth Weight dataset (lowbwt.sav) to answer the following questions. The variable LOW is coded as 1 if the birth weight < 2500 grams (0 otherwise).
 
 (a) Is there a significant difference in LOW risk for children of black mothers and other mothers? Give the CI for the OR. (Hint: Use the last category as the reference.)
 
@@ -47,7 +47,7 @@ Use the Low Birth Weight [dataset](/data/lowbwt.sav) to answer the following que
 
 ```{r ex1.1, echo=TRUE}
 
-bwt <- read_sav("data/lowbwt.sav") %>% 
+bwt <- read_sav("data/lowbwt.sav") |> 
   mutate(
     LOW.numeric = 1 - LOW,
     LOW  = factor(LOW, labels = c("low", "normal")),
@@ -60,8 +60,8 @@ bwt <- read_sav("data/lowbwt.sav") %>%
     ) 
 
 
-bwt %>% 
-  table1(~RACE | LOW, data = ., overall = FALSE, caption = "Low birthweight distribution")
+bwt |> 
+  table1(~RACE | LOW, data = _, overall = FALSE, caption = "Low birthweight distribution")
 
 
 ```
@@ -90,8 +90,15 @@ Another way of getting this answer is by means of a logistic regression, indicat
 
 ```{r ex1-3}
 
-glm(LOW ~ RACE, bwt, family = binomial) %>% 
-  tidy(exponentiate = TRUE, conf.int = TRUE)
+glm(LOW ~ RACE, bwt, family = binomial) |> 
+  modelsummary(
+    exponentiate = TRUE, 
+    stars = TRUE,
+    estimate = "{estimate} ({std.error})", 
+    statistic = "p={p.value}{stars} CI = [{conf.low}; {conf.high}]", 
+    gof_omit = "RMSE|F|Log", 
+    notes = "+ p<0.1, * p<0.05"
+    )
 
 ```
 
@@ -118,8 +125,8 @@ The odds-ratio of "black" to "others" is $0.812$ ($P=0.657$); the 95% CI is [0.3
 # Create a dataset for the five age strata. 
 # For each strata calculate the mean age (age_bar) 
 # and the mean birth-weight (bwt_bar).
-bwt.AGE5 <- bwt %>% 
-  mutate(AGE5 = chop_equally(AGE, 5)) %>% 
+bwt.AGE5 <- bwt |> 
+  mutate(AGE5 = chop_equally(AGE, 5)) |> 
   summarise(
     n = n(),
     age_bar = mean(AGE), 
@@ -143,8 +150,8 @@ Notice hat although the assumptions of the linear model are dramatically violate
 # Now show the observations, the binomial model 
 # of probabilities as well as the means of 
 # the stratified dataset. 
-bwt %>% 
-  mutate(LOW = as.numeric(LOW) - 1) %>% 
+bwt |> 
+  mutate(LOW = as.numeric(LOW) - 1) |> 
   ggplot(aes(AGE, LOW)) + 
   geom_jitter(height = .05, width = .5) + 
   geom_smooth(
@@ -178,30 +185,53 @@ bwt %>%
 (c) Compare the fit of the model with AGE, SMOKE and RACE to that of the model with AGE and SMOKE. (Use the LR test.)
 
 **Answer**: In Model summary of the two models you will find the log likelihood of the two models. Subtracting these values gives the value of the likelihood ratio statistic, we find that the $2\cdot LR = 2\cdot -109.431 - (-113.638) = 8.42$. Under the null hypothesis, this statistics is distributed as a $\chi^2, df=2$. The probability of observing this statistic is therefore `pchisq(8.42, df = 2, lower.tail = FALSE) =` `r pchisq(8.42, df = 2, lower.tail = FALSE)`. 
+ 
+
+```{r ex1-c-test, eval=FALSE, include=FALSE}
+m0.glm <- bwt |> 
+  glm(LOW.numeric ~ AGE, data = _, family = "binomial")
+m0.lm <- bwt |> 
+  lm(LOW.numeric ~ AGE, data = _)
+
+modelsummary(list(m0.glm, m0.lm), stars = TRUE)
+library(marginaleffects)
+m0.glm |> avg_comparisons(variable = "AGE")
+
+```
 
 
 ```{r ex1-c}
 
-m1 <- bwt %>% 
-  glm(LOW.numeric ~ AGE + SMOKE, data = ., family = "binomial")
+m0 <- bwt |> 
+  glm(LOW.numeric ~ AGE, data = _, family = "binomial")
 
-m2 <- bwt %>% 
-  glm(LOW.numeric ~ AGE + SMOKE + RACE, data = ., family = "binomial")
+m1 <- bwt |> 
+  glm(LOW.numeric ~ AGE + SMOKE, data = _, family = "binomial")
 
-m3 <- bwt %>% 
-  glm(LOW.numeric ~ AGE + (SMOKE + RACE)^2, data = ., family = "binomial")
+m2 <- bwt |> 
+  glm(LOW.numeric ~ AGE + SMOKE + RACE, data = _, family = "binomial")
+
+m3 <- bwt |> 
+  glm(
+    LOW.numeric ~ AGE + (SMOKE + RACE)^2, 
+    data = _, 
+    family = "binomial"
+    )
 
 modelsummary(
-  title = "Three models of the low birthweight (outcome variable)", 
-  list(m1, m2, m3), 
+  title = "Modelling low birthweight", 
+  list(m0, m1, m2, m3), 
   estimate = "{estimate} ({std.error})", 
   statistic = "p={p.value}{stars}",
   stars = TRUE, 
-  gof_omit = "RMSE"
+  gof_omit = "RMSE|F"
   )
 
 
 ```
+
+
+
 
 We can also run a likelihood ratio test directly, which results in the same p-value we calculated manually, $p = 0.015$, suggesting that we can reject the null hypothesis that the two models are equivalent. 
 
@@ -213,10 +243,23 @@ lmtest::lrtest(m1, m2)
 ```
 
 
+**NOTE:** Notice that the first model allows us to interpret the effect of age on the rate of low-birthrate by recourse to odds ratio: every additional year in a mother's age increases her baby's odds by a factor of $\exp(0.051) = 1.052$ or about 5%. But it is hard to fully grasp what an increase of 5% in terms of odds actually means in terms of probabilities. 
+
+To address this issue, we could either inspect the slope of the linear regression (which turns out to be 0.0104, suggesting that every year is associated with an increase in probability of about 0.0104), or use the `marginaleffects` package to find that the marginal effect of one additional year in a mother's age is associated with an additional 0.0107 in the probability of her baby being born with a low birth weight, as can be seen in the code below: 
+
+```{r ex5-marginal, echo=TRUE}
+library(marginaleffects)
+m0 |> avg_comparisons(variable = "AGE") |> 
+  as_tibble()
+
+```
+
+You thus have the option of saying either that the odds of having a low-birth weight increase by a factor of about 5% **or** that the probability increases by an additional 0.01 (on average) for every additional year in mother's age.  
+
 
 (d) Is effect of smoking different for different RACE-groups?
 
-**Answer**: On fitting a model with RACE, SMOKE and RACE*SMOKE (see the third model in the table above) we find that the interaction is not significant. We do not have evidence for a different effect of smoking in different RACE-groups. We can also test the two models using the likelihood ratio test, again finding no significant difference between the models (p = 0.24).
+**Answer**: On fitting a model with RACE, SMOKE and RACE*SMOKE (see the last model in the previous section) we find that the interaction is not significant. We do not have evidence for a different effect of smoking in different RACE-groups. We can also test the models with and without interactions using the likelihood ratio test, again finding no significant difference between the models (p = 0.24).
 
 
 ```{r ex1-c-lrtest_interaction}
@@ -256,11 +299,11 @@ Thus $x_2=1.167/0.0106=110.094$ thousands of cigarettes. Dividing this result by
 
 ## Exercise 3
 
-Data from 37 patients receiving a non-depleted allogenic bone marrow transplant were examined to see which variables were associated with the occurrence of acute graft-versus-host disease (GvHD: 0=no, 1=yes) (Bagot et al., 1988).
+Data from 37 patients receiving a non-depleted allogenic bone marrow transplant were examined to see which variables were associated with the occurrence of acute [graft-versus-host disease](https://en.wikipedia.org/wiki/Graft-versus-host_disease) (GvHD: 0=no, 1=yes) (Bagot et al., 1988).
 
 Possible predictors are 
 
--   TYPE (type of leukemia: 1=AML, acute myeloid leukaemia; 2=ALL, acute lymphocytic leukaemia; 3=CML, chronic myeloid leukemia),
+-   TYPE (type of leukemia: 1=AML, [acute myeloid leukemia](https://en.wikipedia.org/wiki/Acute_myeloid_leukemia); 2=ALL, [acute lymphocytic leukaemia](https://en.wikipedia.org/wiki/Acute_lymphoblastic_leukemia); 3=CML, [chronic myeloid leukemia](https://en.wikipedia.org/wiki/Chronic_myelogenous_leukemia)),
 -   PREG (donor pregnancy: 0= no, 1=yes) and
 -   LOGIND (the logarithm of an index of mixed epidermal cell-lymphocyte reactions). 
 
@@ -273,7 +316,7 @@ Data are in a file EX8_3.SAV.
 
 ```{r 3.1a}
 options(digits = 3)
-ex8_3 <- read_sav("data/Ex8_3.sav") %>% 
+ex8_3 <- read_sav("data/Ex8_3.sav") |> 
   mutate(
     gvhd.numeric = gvhd, 
     gvhd = factor(gvhd, labels = c("no", "yes")),
@@ -346,9 +389,9 @@ Anova(m3, type = 3)
 (b) Carry out a multiple logistic regression analysis with predictors which were significant in (a). Which variables are now significantly related to GvHD? Interpret the results in terms of odds ratios.
 
 ```{r 3.1b}
-m4 <- ex8_3 %>% 
-  select(-gvhd, -patient) %>% 
-  glm(gvhd.numeric ~ ., data = . , family = "binomial")
+m4 <- ex8_3 |> 
+  select(-gvhd, -patient) |> 
+  glm(gvhd.numeric ~ ., data = _ , family = "binomial")
 
 modelsummary(
   title = "Modelling GvHD (outcome variable)",
@@ -369,14 +412,15 @@ modelsummary(
 
 (c) Give the 90% confidence intervals for the odds ratios.
 
-**Answer**: You can change in Options in the logistic regression window the default 95% for the CI into 90%, and run the analysis again.
+**Answer**: You can set the `conf_level` argument in the `modelsummary` function to override the default 95% for the CI and set it to 90%. Running the analysis again, we find the following results:
 
 ```{r 3.1c}
 modelsummary(m4, 
              conf_level = 0.90,
                estimate = "{estimate} ({std.error}){stars}",
              statistic = "CI = [{conf.low}, {conf.high}], p = {p.value}",
-             exponentiate = TRUE)
+             exponentiate = TRUE, 
+  gof_omit = "RMSE|F")
 
 
 ```
@@ -395,7 +439,7 @@ modelsummary(m4,
 
 ```{r 3.1d}
 
-ex8_3 %>% 
+ex8_3 |> 
   mutate(
     CML = fct_collapse(
       type, 
@@ -403,8 +447,8 @@ ex8_3 %>%
       yes = "CML"
       ), 
     CML = fct_relevel(CML, "no")
-    ) %>% 
-  glm(gvhd.numeric ~ CML + preg + logind, data = . , family = "binomial") %>% 
+    ) |> 
+  glm(gvhd.numeric ~ CML + preg + logind, data = _ , family = "binomial") |> 
   modelsummary(exponentiate = TRUE,
   estimate = "{estimate} ({std.error}) p={p.value}{stars}", 
   statistic = NULL,
