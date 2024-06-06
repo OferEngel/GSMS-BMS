@@ -100,7 +100,7 @@ df <- read_sav("data/ex5_1.sav") |>
     counter = factor(
       counter, 
       levels = c(0, 1),
-      labels = c("control", "treatment")
+      labels = c("treatment", "control")
     )
   )
 
@@ -109,8 +109,7 @@ df |>
   mutate(counter = fct_rev(counter)) |>  
   ggplot(aes(y = change, x = counter)) +
   geom_violin() +
-  labs(x = NULL) +
-  theme_minimal()
+  labs(x = NULL) 
 
 ```
 
